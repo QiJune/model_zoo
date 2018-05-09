@@ -82,6 +82,7 @@ def resnet_imagenet(input, class_dim, depth=50, data_format='NCHW'):
     out = fluid.layers.fc(input=pool2, size=class_dim, act='softmax')
     return out
 
+
 def resnet_cifar10(input, class_dim, depth=32, data_format='NCHW'):
     assert (depth - 2) % 6 == 0
 
@@ -112,25 +113,28 @@ class ResNet(object):
             }
         }
         self.model_dict = {
-        "cifar10": resnet_cifar10,
-        "flowers": resnet_imagenet
+            "cifar10": resnet_cifar10,
+            "flowers": resnet_imagenet
         }
         self.data_set = data_set
         self.class_dim = self.data_set_dict[self.data_set]["class_dim"]
         self.data_shape = self.data_set_dict[self.data_set]["data_shape"]
 
     def construct_resnet(self, depth, learning_rate, momentum):
-        input = fluid.layers.data(name='data', shape=self.data_shape, dtype='float32')
+        input = fluid.layers.data(
+            name='data', shape=self.data_shape, dtype='float32')
         label = fluid.layers.data(name='label', shape=[1], dtype='int64')
         predict = self.model_dict[self.data_set](input, self.class_dim, depth)
         cost = fluid.layers.cross_entropy(input=predict, label=label)
         self.avg_cost = fluid.layers.mean(x=cost)
-        
+
         self.accuracy = fluid.layers.accuracy(input=predict, label=label)
         # inference program
-        self.inference_program = fluid.default_main_program().clone(for_test=True)
+        self.inference_program = fluid.default_main_program().clone(
+            for_test=True)
 
-        optimizer = fluid.optimizer.Momentum(learning_rate=learning_rate, momentum=momentum)
+        optimizer = fluid.optimizer.Momentum(
+            learning_rate=learning_rate, momentum=momentum)
         opts = optimizer.minimize(self.avg_cost)
         fluid.memory_optimize(fluid.default_main_program())
         self.train_program = fluid.default_main_program().clone()
@@ -141,8 +145,8 @@ class ResNet(object):
         exe.run(fluid.default_startup_program())
         train_reader = paddle.batch(
             paddle.reader.shuffle(
-                paddle.dataset.cifar.train10()
-                if self.data_set == 'cifar10' else paddle.dataset.flowers.train(),
+                paddle.dataset.cifar.train10() if self.data_set == 'cifar10'
+                else paddle.dataset.flowers.train(),
                 buf_size=5120),
             batch_size=batch_size)
 
@@ -151,17 +155,19 @@ class ResNet(object):
             pass_duration = 0.0
             for batch_id, data in enumerate(train_reader()):
                 batch_start = time.time()
-                image = np.array(map(lambda x: x[0].reshape(self.data_shape),
-                                     data)).astype('float32')
+                image = np.array(
+                    map(lambda x: x[0].reshape(self.data_shape), data)).astype(
+                        'float32')
                 label = np.array(map(lambda x: x[1], data)).astype('int64')
                 label = label.reshape([-1, 1])
                 loss, acc = exe.run(self.train_program,
-                                feed={'data': image,
-                                      'label': label},
-                                fetch_list=[self.avg_cost, self.accuracy])
+                                    feed={'data': image,
+                                          'label': label},
+                                    fetch_list=[self.avg_cost, self.accuracy])
                 print("Pass: %d, Iter: %d, loss: %s, acc: %s" %
                       (pass_id, iters, str(loss), str(acc)))
                 iters += 1
+
 
 if __name__ == '__main__':
     resnet50 = ResNet(data_set="cifar10")
